@@ -216,34 +216,6 @@ def flip_azis(p):
 # This requires to have the `FreeFieldCompMinPhase_NoITD_48kHz` subjects in a folder called `SONICOM_only`
 
 # %%
-# read sofas files
-sparse_itds=[]; sparse_pos=[]; sparse_ir=[]; sr=0; sparse_names=[]; sparse_sofa=[]
-for file_path in sorted(glob.glob("LAP Task 2 Sparse HRTFs-selected/LAPtask2_*.sofa")):
-    tmp=file_path.split("/")[1].split("_"); sparse_names.append([int(tmp[1]),int(tmp[2].split(".")[0])])
-    sofa = sofar.read_sofa(file_path,verbose=0)
-    tmp=np.lexsort((sofa.SourcePosition[:,0],sofa.SourcePosition[:,1])); 
-    sofa.SourcePosition=sofa.SourcePosition[tmp,:]; sofa.Data_IR=sofa.Data_IR[tmp,:,:]
-    sparse_pos.append(sofa.SourcePosition); sparse_ir.append(sofa.Data_IR); sr= sofa.Data_SamplingRate; 
-    sparse_sofa.append(sofa)
-
-ord=np.unique(np.array(sparse_names)[:,0])
-data=[[],[],[],[]]
-
-for i in range(len(sparse_ir)):
-    [_,tmp_itds,_]=itd_estimator_maxiacce(sparse_ir[i],48000); sparse_itds.append(tmp_itds)
-    tmp_idx=np.array([False]*pos.shape[0])
-    for j in n_pos[np.where(ord==sparse_names[i][0])[0][0]]:
-        tmp_idx[np.where(np.all(j==pos,axis=1))[0]]=True    
-    tmp_irs=20*np.log10(np.abs(np.fft.fft(sparse_ir[i],axis=2)))[:,:,0:129]
-    freq= np.arange(256//2+1) *(48000 / 256); 
-    tmp_irs=(tmp_irs-Xl_mean[tmp_idx,:,:]); tmp_irs[:,:,freq>20000]=0
-    tmp_irs=back_from_mag(np.power(10,tmp_irs/20))
-    tmp_irs[:,:,42:]=0; tmp_irs=tmp_irs[:,:,0:128]
-    freq= np.arange(128//2+1) *(48000 / 128); 
-    tmp_irs=20*np.log10(np.abs(np.fft.fft(tmp_irs,axis=2)))[:,:,0:sum(freq<=20000)]
-    data[np.where(ord==sparse_names[i][0])[0][0]].append([tmp_irs,tmp_itds])
-
-
 itds=[]; pos=[]; ir=[]; sr=0; sofas=[] #f_names=[]
 for file_path in sorted(glob.glob("SONICOM_only/*.sofa")):
     sofa = sofar.read_sofa(file_path,verbose=0)
@@ -261,11 +233,38 @@ Xm=np.apply_along_axis(minPhaseHRIR,3,Xf)
 Xl=20*np.log10(np.abs(Xf)) #HRTFs in log magnitudes
 Xl_mean=np.mean(Xl,axis=(0)); 
 
-# %%
+
+# read sofas files
+sparse_itds=[]; sparse_pos=[]; sparse_ir=[]; sr=0; sparse_names=[]; sparse_sofa=[]
+for file_path in sorted(glob.glob("LAP Task 2 Sparse HRTFs-selected/LAPtask2_*.sofa")):
+    tmp=file_path.split("/")[1].split("_"); sparse_names.append([int(tmp[1]),int(tmp[2].split(".")[0])])
+    sofa = sofar.read_sofa(file_path,verbose=0)
+    tmp=np.lexsort((sofa.SourcePosition[:,0],sofa.SourcePosition[:,1])); 
+    sofa.SourcePosition=sofa.SourcePosition[tmp,:]; sofa.Data_IR=sofa.Data_IR[tmp,:,:]
+    sparse_pos.append(sofa.SourcePosition); sparse_ir.append(sofa.Data_IR); sr= sofa.Data_SamplingRate; 
+    sparse_sofa.append(sofa)
+    
 n_measurements=np.unique(np.array(sparse_names)[:,0]);
 n_pos=[None]*len(n_measurements);
 for i in sparse_pos:
   n_pos[np.where(len(i)==n_measurements)[0][0]]=i
+
+ord=np.unique(np.array(sparse_names)[:,0])
+data=[[],[],[],[]]
+
+for i in range(len(sparse_ir)):
+    [_,tmp_itds,_]=itd_estimator_maxiacce(sparse_ir[i],48000); sparse_itds.append(tmp_itds)
+    tmp_idx=np.array([False]*pos.shape[0])
+    for j in n_pos[np.where(ord==sparse_names[i][0])[0][0]]:
+        tmp_idx[np.where(np.all(j==pos,axis=1))[0]]=True    
+    tmp_irs=20*np.log10(np.abs(np.fft.fft(sparse_ir[i],axis=2)))[:,:,0:129]
+    freq= np.arange(256//2+1) *(48000 / 256); 
+    tmp_irs=(tmp_irs-Xl_mean[tmp_idx,:,:]); tmp_irs[:,:,freq>20000]=0
+    tmp_irs=back_from_mag(np.power(10,tmp_irs/20))
+    tmp_irs[:,:,42:]=0; tmp_irs=tmp_irs[:,:,0:128]
+    freq= np.arange(128//2+1) *(48000 / 128); 
+    tmp_irs=20*np.log10(np.abs(np.fft.fft(tmp_irs,axis=2)))[:,:,0:sum(freq<=20000)]
+    data[np.where(ord==sparse_names[i][0])[0][0]].append([tmp_irs,tmp_itds])
 
 # %%
 freq= np.arange(256//2+1) *(48000 / 256); 
@@ -387,6 +386,7 @@ for I0 in range(1,4):
 # This requires to have the `FreeFieldCompMinPhase_48kHz` subjects in a folder called `SONICOM_F`
 
 # %%
+eles=[90,75,60,45,30,20,10,0,-10,-20,-30,-45]
 results=[]
 for I1 in range(4):
     for I0 in range(sum(~idx)):
@@ -480,9 +480,10 @@ for I1 in range(4):
 # This requires to have the `FreeFieldCompMinPhase_48kHz` subjects in a folder called `SONICOM_F`
 
 # %%
+eles=[90,75,60,45,30,20,10,0,-10,-20,-30,-45]
 for i,j in enumerate(data):
     for j3,j2 in enumerate(j):
-        j2[0]=j2[0]/np.max(abs(j2[0]))
+        j2[0]=j2[0]/np.max(abs(Xp))
         x_data_l=np.zeros((Xp.shape[1],54))
         x_data_l[-1,:]=j2[0][-1,0,:]
         for l,k in enumerate(eles):
@@ -528,7 +529,7 @@ for i,j in enumerate(data):
             x_data[l,1 if tmp_itds[l]<0 else 0,:]=np.roll(x_data[l,1 if tmp_itds[l]<0 else 0,:],np.int32(np.rint(abs(tmp_itds[l]))))
         #sofa.SourcePosition=sofa.SourcePosition[tmp,:]; sofa.Data_IR=sofa.Data_IR[tmp,:,:]
         sofa = sofar.read_sofa("MyHRTF_FreeFieldCompMinPhase_48kHz.sofa",verbose=0)
-        tmp=np.lexsort((sofa.SourcePosition[:,1],sofa.SourcePosition[:,0])); sofa.SourcePosition=sofa.SourcePosition[tmp,:]
+        tmp=np.lexsort((sofa.SourcePosition[:,0],sofa.SourcePosition[:,1])); sofa.SourcePosition=sofa.SourcePosition[tmp,:]
         inds=np.array([False]*sofa.SourcePosition.shape[0])
         for l in sofa.SourcePosition:
             inds[np.where(np.all(l==pos,axis=1))[0]]=True
